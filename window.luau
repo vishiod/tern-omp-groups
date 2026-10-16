@@ -310,10 +310,11 @@ end)
 tern.command({ id = "reopen", title = "Reopen omp chat", group = "omp", run = reopen })
 -- ⌘⇧O belongs to Tern's key preset, so the default chord is ⌘⌥O.
 tern.bind("cmd+alt+o", "plugin.omp-groups.reopen")
--- A status-line button that opens the same picker. Tern gives a status formatter 4 ms and turns
--- the hook off until the next reload when it runs longer, so the formatter returns one prebuilt
--- table: no allocation, no garbage-collector step inside the budget.
-local STATUS_SEGMENTS = { { text = "omp chats", command = "plugin.omp-groups.reopen" } }
+-- A status-line button (history icon, no text) that opens the same picker. Tern gives a status
+-- formatter 4 ms and turns the hook off until the next reload when it runs longer, so the formatter
+-- returns one prebuilt table: no allocation, no garbage-collector step inside the budget.
+-- omp/reload-hook.ts turns the hook on again when a new omp chat starts.
+local STATUS_SEGMENTS = { { text = "", icon = "history", command = "plugin.omp-groups.reopen" } }
 tern.chrome.status(function(_pane)
 	return STATUS_SEGMENTS
 end)

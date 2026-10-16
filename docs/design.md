@@ -98,7 +98,7 @@ The plugin stores the session on every `title` event of a coded pane and on ever
 
 ### "Reopen omp chat" picker
 
-- Palette command `plugin.omp-groups.reopen`, bound to `⌘⌥O` (`⌘⇧O` belongs to Tern's key preset), and an **omp chats** status-line button.
+- Palette command `plugin.omp-groups.reopen`, bound to `⌘⌥O` (`⌘⇧O` belongs to Tern's key preset), and a status-line button that shows Tern's built-in `history` icon and no text.
 - **Chat list.** Rows of `session_titles`, newest first, read with `cx.db`. Rows without a session file under `~/.omp/agent/sessions/*/` are deleted chats and do not show.
 - **Picker.** `cx:pick`, one item per chat, under its group heading. Open chats show a check mark.
 - **Open chat picked.** Tern focuses it and starts nothing.
@@ -107,6 +107,10 @@ The plugin stores the session on every `title` event of a coded pane and on ever
 ### Time budgets
 
 Tern gives a status formatter 4 ms and other hooks 50 ms. A hook that runs longer is turned off until the next reload. The status formatter therefore returns one prebuilt table and allocates nothing.
+
+This does not stop every overrun. The prebuilt formatter still went over 4 ms once. The likely cause is work that Tern does in the plugin VM around each call, which the plugin cannot control. Tern reports the overrun only in `~/Library/Logs/Tern/tern.log`. `tern plugin list` still shows `ready`.
+
+So an omp hook, `omp/reload-hook.ts`, restores the plugin. On omp `session_start` inside Tern (`TERN_PANE` is set), it reads the last 1 MiB of `tern.log`. It runs `tern plugin reload` when the latest `disabled until reload plugin="omp-groups"` line comes from the current Tern process. It skips a line that it already handled, which it records in `~/.local/state/tern-omp-groups/handled-disable`. It records the line before it reloads, so chats that start together reload once. `TERN_WINDOW_KEY` can be present but empty inside omp, so the hook does not use it. omp skips symlinked hook files, so the installed hook is a one-line file that re-exports `omp/reload-hook.ts`.
 
 ### Errors
 

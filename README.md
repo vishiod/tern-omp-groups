@@ -4,7 +4,8 @@ Group [omp](https://omp.sh) chats in [Tern](https://stencil.so/tern) by a stable
 
 - omp starts every chat title with a code: the issue key without the hyphen (`ABC123`), else a work type (`PR`, `EXPLAIN`, `TRIAGE`, `PLAN`, `BUILD`, `OMP`, `OPS`, `MISC`).
 - When a new chat gets its code, Tern moves the chat to the session with that name, and the window follows it.
-- The **omp chats** button (or `⌘⌥O`) lists every saved chat under its group. Click an open chat to jump to it. Click a closed chat to reopen it in its group.
+- The **history** icon button in Tern's status line (or `⌘⌥O`) lists every saved chat under its group. Click an open chat to jump to it. Click a closed chat to reopen it in its group.
+- When Tern turns the button off (see [Troubleshooting](#troubleshooting)), the next omp chat you start turns it on again.
 
 Design notes: [`docs/design.md`](docs/design.md).
 
@@ -16,10 +17,11 @@ Design notes: [`docs/design.md`](docs/design.md).
 4. [Install the plugin](#3-install-the-plugin)
 5. [Install the omp title rule](#4-install-the-omp-title-rule)
 6. [Turn on Tern's status line](#5-turn-on-terns-status-line)
-7. [Check the setup](#6-check-the-setup)
-8. [Use](#use)
-9. [Troubleshooting](#troubleshooting)
-10. [Update, remove, develop](#update)
+7. [Install the omp reload hook](#6-install-the-omp-reload-hook)
+8. [Check the setup](#7-check-the-setup)
+9. [Use](#use)
+10. [Troubleshooting](#troubleshooting)
+11. [Update, remove, develop](#update)
 
 ## Requirements
 
@@ -115,7 +117,7 @@ CAUTION: If `~/.omp/agent/TITLE_SYSTEM.md` already exists, the command replaces 
 
 ## 5. Turn on Tern's status line
 
-The **omp chats** button lives in Tern's status line, which is off by default.
+The button (a **history** icon, no text) lives in Tern's status line, which is off by default.
 
 1. Open `~/Library/Application Support/Tern/settings.json`.
 2. Add `"status_bar": true`, for example:
@@ -130,7 +132,26 @@ The **omp chats** button lives in Tern's status line, which is off by default.
 
 You can skip this step and use `⌘⌥O` or the palette command **Reopen omp chat** instead.
 
-## 6. Check the setup
+## 6. Install the omp reload hook
+
+Tern turns a plugin hook off "until reload" when one call runs over its time budget (4 ms for the status button). The button then goes away, and only `~/Library/Logs/Tern/tern.log` says why. This omp hook turns it on again when you start a new omp chat.
+
+omp does not load symlinked hook files, so the command writes a one-line file that loads the hook from the installed plugin:
+
+```sh
+mkdir -p ~/.omp/agent/hooks/post
+printf 'export { default } from "%s";\n' "$(tern plugin dir)/omp-groups/omp/reload-hook.ts" > ~/.omp/agent/hooks/post/tern-omp-groups.ts
+```
+
+When an omp chat starts inside Tern, the hook reads the end of `tern.log`. It runs `tern plugin reload` only when all of these are true:
+
+- The log has a `disabled until reload plugin="omp-groups"` line.
+- Tern did not restart after that line. A restart loads every plugin again.
+- The hook did not reload for that line before. It saves the line's time in `~/.local/state/tern-omp-groups/handled-disable`.
+
+The hook reads the macOS log path. On Linux it does nothing.
+
+## 7. Check the setup
 
 1. In a Tern pane, run:
 
@@ -139,14 +160,14 @@ You can skip this step and use `⌘⌥O` or the palette command **Reopen omp cha
    ```
 
 2. Wait for the title. Expected: the title is `ABC123: …`, the chat moves to a new session named `ABC123`, and the window shows it.
-3. Click **omp chats** at the right end of the status line. Expected: a picker with an `ABC123` group that holds the chat, with a check mark.
-4. Close the chat, then click **omp chats** again and pick it. Expected: the chat opens again in session `ABC123` with its history.
+3. Click the **history** icon at the right end of the status line. Expected: a picker with an `ABC123` group that holds the chat, with a check mark.
+4. Close the chat, then click the **history** icon again and pick it. Expected: the chat opens again in session `ABC123` with its history.
 
 ## Use
 
 | To | Do |
 |---|---|
-| Find, switch to or reopen a chat | Click **omp chats**, or press `⌘⌥O` |
+| Find, switch to or reopen a chat | Click the **history** icon, or press `⌘⌥O` |
 | Switch between whole groups | `⌘⇧P`, then the **Sessions** filter (open sessions only) |
 | Start a chat in a group | Name the issue key or the kind of work in your first prompt |
 
@@ -180,8 +201,8 @@ A chat's group is the Tern session that holds it, so the picker and the **Sessio
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Toast "Plugin omp status failed" (or another hook name) | A hook ran over Tern's time budget (status 4 ms, others 50 ms), and Tern turned it off | Run `tern plugin reload`. The log line is in `~/Library/Logs/Tern/tern.log` (`plugin hook exceeded its budget`). |
-| No **omp chats** button | Status line is off, or the session has no pane | Do [step 5](#5-turn-on-terns-status-line), or use `⌘⌥O` |
+| Toast "Plugin omp status failed" (or another hook name), and the **history** icon is gone | A hook ran over Tern's time budget (status 4 ms, others 50 ms), and Tern turned it off | Start a new omp chat (the [reload hook](#6-install-the-omp-reload-hook) reloads the plugin), or run `tern plugin reload`. The log line is in `~/Library/Logs/Tern/tern.log` (`plugin hook exceeded its budget`). |
+| No **history** icon | Status line is off, or the session has no pane | Do [step 5](#5-turn-on-terns-status-line), or use `⌘⌥O` |
 | Chats do not move | Titles have no code | Check that `~/.omp/agent/TITLE_SYSTEM.md` exists and that no project file overrides it |
 | `⌘⌥O` does nothing | Another binding uses the chord | Use the palette command **Reopen omp chat** |
 | `tern plugin list` shows `failed:` | The plugin did not load | Read the error, then run `tern plugin reload` |
@@ -195,11 +216,14 @@ tern plugin install --force github.com/vishiod/tern-omp-groups
 cp "$(tern plugin dir)/omp-groups/omp/TITLE_SYSTEM.md" ~/.omp/agent/TITLE_SYSTEM.md
 ```
 
+The reload hook loads its code from the installed plugin, so it updates with it.
+
 ## Remove
 
 ```sh
 tern plugin remove omp-groups
-rm ~/.omp/agent/TITLE_SYSTEM.md
+rm ~/.omp/agent/TITLE_SYSTEM.md ~/.omp/agent/hooks/post/tern-omp-groups.ts
+rm -r ~/.local/state/tern-omp-groups
 ```
 
 Sessions that the plugin made stay. Close or rename them in Tern. The plugin data folder stays too. Delete `~/Library/Application Support/Tern/plugin-data/omp-groups` to start fresh.
@@ -211,6 +235,7 @@ git clone https://github.com/vishiod/tern-omp-groups.git
 cd tern-omp-groups
 tern plugin link "$PWD"                         # Tern reloads the plugin when you save a file
 ln -sf "$PWD/omp/TITLE_SYSTEM.md" ~/.omp/agent/TITLE_SYSTEM.md
+printf 'export { default } from "%s";\n' "$PWD/omp/reload-hook.ts" > ~/.omp/agent/hooks/post/tern-omp-groups.ts
 brew install luau && luau tests/codes_test.luau # pure logic in codes.luau
 tern plugin types "$PWD"                        # tern.d.luau for luau-lsp (not committed)
 ```
@@ -224,6 +249,7 @@ tern plugin types "$PWD"                        # tern.d.luau for luau-lsp (not 
 | `codes.luau` | Pure logic: parse, normalize, group, age |
 | `tests/codes_test.luau` | Tests for `codes.luau` |
 | `omp/TITLE_SYSTEM.md` | omp title rule |
+| `omp/reload-hook.ts` | omp hook: reloads the plugin on a new chat when Tern turned it off |
 | `docs/design.md` | Design notes |
 
 Tern plugin docs: <https://docs.stencil.so/tern/guides/getting-started.html>.
