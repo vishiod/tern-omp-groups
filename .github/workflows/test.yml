@@ -1,0 +1,27 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install luau 0.742
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/luau.zip" https://github.com/luau-lang/luau/releases/download/0.742/luau-ubuntu.zip
+          unzip -q "$RUNNER_TEMP/luau.zip" -d "$RUNNER_TEMP/luau"
+          echo "$RUNNER_TEMP/luau" >> "$GITHUB_PATH"
+
+      - name: Compile plugin sources
+        run: luau-compile --null codes.luau window.luau
+
+      - name: Run tests
+        run: luau tests/codes_test.luau
