@@ -2,10 +2,11 @@
 
 ## Summary
 
-omp chats in Tern are hard to find and hard to group. This project adds two parts:
+omp chats in Tern are hard to find and hard to group. This project adds three parts:
 
 1. **A title rule for omp.** Every chat title starts with a stable group code: the issue key without the hyphen, else one of eight work types.
-2. **A Tern plugin, `omp-groups`.** It moves each new omp chat into the Tern session named by its code. It adds a picker that lists every saved chat by group and reopens the chosen chat in its group.
+2. **A Tern plugin, `omp-groups`.** It moves each new omp chat into the Tern session named by its code. It adds a picker that lists every saved chat by group, with its subagents, and reopens the chosen chat in its group. It shows the history of any chat or subagent as a scrollable note.
+3. **A setup script, `install.sh`.** It installs, updates, links and removes all of the above in one command.
 
 ## Problem
 
@@ -14,13 +15,17 @@ omp chats in Tern are hard to find and hard to group. This project adds two part
 | All chats share one tab of one session | Tern does not group agent panes |
 | Codes are random per chat (`AUTH` in one chat, `LOGIN` in the next, same topic) | omp makes a new code for each title and does not know the codes of earlier chats |
 | A closed chat is hard to get back | Recovery needs `omp --resume <id>` with a known id |
+| Subagents are hard to reach | A subagent has no Tern pane, and its transcript is a file under the chat's folder |
+| History is hard to read | A closed chat must be resumed to read it. A subagent's history has no viewer in Tern. |
 
 ## Goals
 
 - The same issue or work type always gets the same code.
 - A new omp chat moves to the Tern session of its code, and the window follows it.
-- One picker lists every saved chat by group and reopens the chosen chat in its group.
+- One picker lists every saved chat by group, with its subagents, and reopens the chosen chat in its group.
+- The history of any chat or subagent opens as a scrollable note, without starting omp.
 - The picker and Tern's own session list show the same groups.
+- One command sets everything up.
 
 ## Non-goals
 
@@ -55,7 +60,7 @@ Effects, from the omp configuration docs ("Session title prompt override"):
 
 ## Part 2 — Tern plugin `omp-groups`
 
-Files: `plugin.toml` (manifest), `window.luau` (window half), `codes.luau` (pure logic, tested with plain `luau`). The plugin has no host half.
+Files: `plugin.toml` (manifest), `window.luau` (window half), `codes.luau` and `transcript.luau` (pure logic, tested with plain `luau`). The plugin has no host half.
 
 ### Title parsing
 
@@ -100,9 +105,19 @@ The plugin stores the session on every `title` event of a coded pane and on ever
 
 - Palette command `plugin.omp-groups.reopen`, bound to `⌘⌥O` (`⌘⇧O` belongs to Tern's key preset), and a status-line button that shows Tern's built-in `history` icon and no text.
 - **Chat list.** Rows of `session_titles`, newest first, read with `cx.db`. Rows without a session file under `~/.omp/agent/sessions/*/` are deleted chats and do not show.
-- **Picker.** `cx:pick`, one item per chat, under its group heading. Open chats show a check mark.
+- **Subagent list.** omp saves subagent `X` of a chat as `<chat folder>/X.jsonl`, and the agents that `X` started under `<chat folder>/X/`. The picker shows them below their chat as `↳ X` rows, each parent before its children, indented by depth. omp saves no title for a subagent, so it has no `session_titles` row.
+- **Picker.** `cx:pick`, one item per chat or subagent, under its group heading. Open chats show a check mark.
 - **Open chat picked.** Tern focuses it and starts nothing.
 - **Closed chat picked.** The plugin switches to (or creates) the group session and opens a new tab with `omp --resume <id>`.
+- **Subagent picked.** The plugin opens its history note. A subagent has no pane to switch to.
+
+### "Read omp chat history"
+
+- Palette command `plugin.omp-groups.history`. The same picker, but every row opens its history note.
+- **Note.** `cx.docs:new_note` with the agent name or chat title as its heading. One section per user or assistant message, oldest first, with the UTC time. An assistant message with only tool calls joins the section before it as `- \`tool\` intent` lines. Thinking, tool results and `developer` messages do not show.
+- **Reading.** `tern.fs.read` of the session file. The plugin decodes only lines whose first 400 bytes name a user or assistant message, so it never decodes tool results, the longest lines.
+- **Size.** When the note is longer than 512 KiB, the oldest sections are left out, and the note says how many.
+- The pure parts (`transcript.agents`, `transcript.wanted`, `transcript.markdown`) are in `transcript.luau` and have tests.
 
 ### Time budgets
 
@@ -116,6 +131,18 @@ So an omp hook, `omp/reload-hook.ts`, restores the plugin. On omp `session_start
 
 Every failed step shows an error toast with the reason and leaves the pane where it is.
 
+## Setup script
+
+`install.sh` does the five setup steps that the README used to list:
+
+1. Install the plugin from GitHub (`--force` updates it), or link the checkout with `--dev`. It removes the other kind first, because Tern refuses a link while an installed copy exists.
+2. Install `omp/TITLE_SYSTEM.md` to `~/.omp/agent/` (a symlink with `--dev`). A rule that is not ours (its first line differs) is kept once as `TITLE_SYSTEM.md.bak`.
+3. Set `"status_bar": true` in Tern's `settings.json` with `osascript -l JavaScript`, which every Mac has. It keeps the other keys and their order. Tern reads the file again when it changes.
+4. Write the one-line reload hook that re-exports `omp/reload-hook.ts`.
+5. Check that `tern plugin list` shows the plugin as `ready`.
+
+`--uninstall` reverses steps 1, 2 and 4, restores the backup rule, and deletes the hook state. It leaves the status line on.
+
 ## Testing
 
 | Test | Expected |
@@ -126,4 +153,7 @@ Every failed step shows an error toast with the reason and leaves the pane where
 | Group memory | A renamed, closed chat shows under the session it was in |
 | Reopen | A closed chat opens in its group with its history. An open chat gets focus, and no new process starts. |
 | Load safety | `tern plugin reload` moves no pane |
+| Subagents | A chat that started subagents shows them below it, children below their lead |
+| History note | Picking a subagent (or any row in **Read omp chat history**) opens a note with its messages and tool lines, without thinking or tool output |
+| Setup | `install.sh`, `install.sh --dev` and `install.sh --uninstall` in a sandbox `HOME` and `TERN_CONFIG_DIR` keep a foreign rule, set the status line, and restore the rule |
 | Budgets | 80 focus changes and 6 picker opens log no budget warning |

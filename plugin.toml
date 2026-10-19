@@ -1,6 +1,6 @@
 schema = 1
 id = "omp-groups"
 name = "omp groups"
-version = "0.1.0"
-description = "Moves each omp chat into the Tern session of its group code, and reopens saved chats by group."
+version = "0.2.0"
+description = "Moves each omp chat into the Tern session of its group code, reopens saved chats and their subagents by group, and shows their history."
 window = "window.luau"
