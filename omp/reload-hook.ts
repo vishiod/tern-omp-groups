@@ -2,7 +2,7 @@
 // turned it off. Tern disables a plugin hook that runs past its time budget (4 ms for the status
 // button) "until reload", and says so only in its log. A reload of the plugin restores it.
 //
-// Install: ln -sf "$PWD/omp/reload-hook.ts" ~/.omp/agent/hooks/post/tern-omp-groups.ts
+// Install: install.sh writes ~/.omp/agent/hooks/post/tern-omp-groups.ts, which re-exports this file.
 import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
 import * as fs from "node:fs";
 import * as os from "node:os";

@@ -21,7 +21,12 @@ jobs:
           echo "$RUNNER_TEMP/luau" >> "$GITHUB_PATH"
 
       - name: Compile plugin sources
-        run: luau-compile --null codes.luau window.luau
+        run: luau-compile --null codes.luau transcript.luau window.luau
 
       - name: Run tests
-        run: luau tests/codes_test.luau
+        run: |
+          luau tests/codes_test.luau
+          luau tests/transcript_test.luau
+
+      - name: Check install.sh
+        run: shellcheck install.sh
